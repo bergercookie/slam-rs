@@ -1,0 +1,22 @@
+[package]
+name = "slam-rs"
+version = "0.1.0"
+authors = ["Nikos Koukis <nickkouk@gmail.com>"]
+
+description = "SLAM/Graph optimisation bits implemented in Rust"
+documentation = "TODO"
+
+homepage = "https://github.com/bergercookie/slam-rs"
+repository = "https://github.com/bergercookie/slam-rs"
+
+readme = "README.md"
+
+keywords = ["slam", "graph-slam", "computer vision", "algorithm", "robotics"]
+categories = ["algorithms", "science", "simulation"]
+
+license = "MIT"
+
+[dependencies]
+kiss3d = "0.12"
+nalgebra = "*"
+num-traits = "0.2"
