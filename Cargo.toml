@@ -17,6 +17,11 @@ categories = ["algorithms", "science", "simulation"]
 license = "MIT"
 
 [dependencies]
-kiss3d = "0.12"
-nalgebra = "*"
+kiss3d = "0.16.1"
+nalgebra = "0.16.0"
+itertools = "*"
 num-traits = "0.2"
+typenum = "1.10.0"
+generic-array = "*"
+# TODO - take it out
+rand = "*"

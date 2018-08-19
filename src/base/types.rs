@@ -1,5 +1,3 @@
-extern crate nalgebra as na;
-
 /// Way of encoding the uncertainty of a measurement - either in covariance or information form
 pub enum UncertaintyType {
     Covariance,
