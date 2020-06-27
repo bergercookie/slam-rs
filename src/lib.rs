@@ -1,22 +1,17 @@
-#![feature(slice_patterns)]
+#![warn(missing_debug_implementations)]
+#![warn(rust_2018_idioms)]
+#![allow(missing_docs)] // TODO
+#![allow(clippy::missing_errors_doc)] // TODO
+// #![warn(clippy::all)]
+// #![warn(clippy::pedantic)]
+#![warn(clippy::nursery)]
+#![warn(clippy::cargo)]
+#![allow(clippy::module_name_repetitions)]
 
-extern crate generic_array;
-extern crate kiss3d;
-extern crate nalgebra as na;
-extern crate typenum;
-extern crate itertools;
-extern crate rand; // TODO - take it out if not needed
+pub mod drivers;
+pub mod utils;
 
-/// Root library file for slam-rs
-pub mod base;
-pub mod factors;
-pub mod geometry;
-pub mod graphs;
-pub mod solvers;
-
-
-pub use self::base::*;
-pub use self::factors::*;
-pub use self::geometry::*;
-pub use self::graphs::*;
-pub use self::solvers::*;
+pub use self::drivers::{
+    DatasetDriver, DatasetDriverState, EurocDriver, EurocStreamGray, FiniteStream, Stream,
+};
+pub use self::utils::errors;

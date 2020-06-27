@@ -2,26 +2,35 @@
 name = "slam-rs"
 version = "0.1.0"
 authors = ["Nikos Koukis <nickkouk@gmail.com>"]
+edition = "2018"
 
 description = "SLAM/Graph optimisation bits implemented in Rust"
-documentation = "TODO"
 
+documentation = "https://github.com/bergercookie/slam-rs"
 homepage = "https://github.com/bergercookie/slam-rs"
 repository = "https://github.com/bergercookie/slam-rs"
 
 readme = "README.md"
 
-keywords = ["slam", "graph-slam", "computer vision", "algorithm", "robotics"]
-categories = ["algorithms", "science", "simulation"]
-
+keywords = ["machine-learning", "slam", "graph-slam", "computer vision", "algorithm", "robotics"]
+categories = ["algorithms", "science::robotics"]
+publish = true
+exclude = [
+    "examples/*"
+]
 license = "MIT"
 
+[badges]
+
+cirrus-ci = { repository = "cv-detectors-rs", branch = "master" }
+
+
 [dependencies]
-kiss3d = "0.16.1"
-nalgebra = "0.16.0"
-itertools = "*"
-num-traits = "0.2"
-typenum = "1.10.0"
-generic-array = "*"
-# TODO - take it out
-rand = "*"
+thiserror = "1.0.20"
+imgui-rs = "^1.47.0"
+log = { version = "0.4.8", features = ["max_level_debug", "release_max_level_warn"] }
+clap = "^3.0.0-beta.1"
+kiss3d = "^0.24.1"
+nalgebra = "^0.21.1"
+image = "^0.23.4"
+csv = "1.1.3"
