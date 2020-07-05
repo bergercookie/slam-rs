@@ -32,8 +32,9 @@ pub trait FiniteStream: Stream {
 ///
 /// A standard workflow using a dataset should look like this
 ///
+///```text
 ///           +---+ allow callbacks               start streaming data
-///           |      ([`State::Initialised`])     callback registrations forbidden
+///           |     ([`State::Initialised`])      callback registrations forbidden
 ///           |                                   ([`State::Running`])
 ///           |                                   +
 ///           |                                   |
@@ -44,6 +45,7 @@ pub trait FiniteStream: Stream {
 ///                               |
 ///                               +----+  callback registrations now allowed
 ///                                       ([`State::Locked`])
+///```
 pub trait DatasetDriver {
     /// return the path to the root directory of the dataset
     fn root_dir(&self) -> Option<&PathBuf>;

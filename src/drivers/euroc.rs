@@ -13,7 +13,13 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use csv::Reader;
+use csv::Result as CsvResult;
 use log::{info, warn};
+use std::fs::File;
+use std::io::prelude::*;
+
+#[cfg(test)]
+use mocktopus::macros::*;
 
 // -------------------------------------------------------------------------------------------------
 // EurocStreamGray
@@ -40,11 +46,29 @@ pub struct EurocStreamGray {
     stream_cursor: usize,
 }
 
+#[cfg_attr(test, mockable)]
 impl EurocStreamGray {
+    pub fn new() -> Self {
+        EurocStreamGray {
+            root_dir: PathBuf::new(),
+            freq: None,
+            img_paths: Vec::new(),
+            stream_cursor: 0,
+        }
+    }
+
     /// Set the root directory
-    pub fn root_dir(&mut self, root_dir: PathBuf) -> &Self {
+    pub fn root_dir_mut(&mut self, root_dir: PathBuf) -> &Self {
         self.root_dir = root_dir;
         self
+    }
+    pub fn root_dir(mut self, root_dir: PathBuf) -> Self {
+        self.root_dir = root_dir;
+        self
+    }
+
+    fn image_exists(&self, img_path: &PathBuf) -> bool {
+        img_path.exists()
     }
 }
 
@@ -71,9 +95,14 @@ impl Stream for EurocStreamGray {
 
     fn init(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // get a list of all the timestamps and image strings
-        // TODO
-        let rdr = Reader::from_path(self.root_dir.join("data.csv"))?;
-        let mut csv_iter = rdr.into_records();
+
+        // initialise reader
+        let f = File::open(self.root_dir.join("data.csv"))?;
+        let mut conts = vec![];
+        f.read_to_end(&mut conts);
+        let rdr = Reader::from_reader(&conts);
+
+        let csv_iter = rdr.into_records();
         // TODO - Does this include the header?
 
         let mut img_stamps: Vec<Duration> = vec![];
@@ -84,7 +113,7 @@ impl Stream for EurocStreamGray {
             let nsecs = Duration::from_nanos(record[0].parse::<u64>()?);
 
             let img_path = self.root_dir.join(&record[1]);
-            if !img_path.exists() {
+            if !self.image_exists(&img_path) {
                 warn!("Image path [{}] is invalid", img_path.display());
                 continue;
             }
@@ -94,7 +123,6 @@ impl Stream for EurocStreamGray {
         }
 
         if img_stamps.is_empty() {
-            // TODO - This is a weird construct
             return Err(Box::new(DatasetDriverError::StreamEmpty));
         }
 
@@ -207,4 +235,41 @@ impl DatasetDriver for EurocDriver {
     fn start() -> Result<(), DatasetDriverError> {
         todo!()
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mocktopus::mocking::*;
+    use std::io::{Error, ErrorKind};
+
+    #[test]
+    fn euroc_stream_invalid_dir_test() {
+        let mut stream = EurocStreamGray::new().root_dir("some-directory".into());
+        let _ = stream.init();
+        match Error::last_os_error().raw_os_error() {
+            Some(2) => {}
+            Some(_) | None => panic!("Should have failed"),
+        }
+    }
+
+    #[test]
+    fn euroc_stream_normal_test() {
+        EurocStreamGray::image_exists.mock_safe(|x, y| MockResult::Return(true));
+        EurocStreamGray::get_csv_reader.mock_safe(|x| MockResult::Return(true));
+
+        let mut stream = EurocStreamGray::new();
+        let mut fake_csv_reader = todo!(); // TODO
+        let stream_images: Vec<MeasurementData> = vec![]; // TODO
+        stream.get_csv_reader().returning(|| Ok(fake_csv_reader));
+        stream.image_exists().return_const(true);
+
+        stream.init().unwrap();
+
+        for (idx, data) in &stream.iter().enumerate() {
+            assert_eq!(stream_images[idx], data)
+        }
+    }
+
+    // use guerrilla
 }
