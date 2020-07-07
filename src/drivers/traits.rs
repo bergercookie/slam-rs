@@ -131,7 +131,7 @@ pub enum DatasetDriverState {
 }
 
 /// Errors associated with dataset operations
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum DatasetDriverError {
     #[error("Frequency of the given stream is not steady")]
     UnsteadyFrequency,

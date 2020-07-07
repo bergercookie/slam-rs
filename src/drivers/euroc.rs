@@ -8,14 +8,17 @@ use crate::drivers::traits::{
 };
 use crate::utils::{Measurement, MeasurementData, MeasurementType};
 
-use image::{open, GrayImage};
+use image;
+use image::{load_from_memory_with_format, GrayImage, ImageFormat::Png};
 use std::path::PathBuf;
 use std::time::Duration;
 
 use csv::Reader;
 use csv::Result as CsvResult;
 use log::{info, warn};
+use std::collections::hash_map::DefaultHasher;
 use std::fs::File;
+use std::hash::{Hash, Hasher};
 use std::io::prelude::*;
 
 #[cfg(test)]
@@ -67,8 +70,21 @@ impl EurocStreamGray {
         self
     }
 
+    /// Get the contents of the camera csv file
+    fn parse_csv(&self) -> std::io::Result<String> {
+        let mut conts = String::new();
+        let mut f = File::open(self.root_dir.join("data.csv"))?;
+        f.read_to_string(&mut conts)?;
+        Ok(conts)
+    }
+
     fn image_exists(&self, img_path: &PathBuf) -> bool {
         img_path.exists()
+    }
+
+    fn get_measurement_data(&self, path: &PathBuf) -> MeasurementData {
+        let img = image::open(path).unwrap().into_luma();
+        MeasurementData::Grayscale(img)
     }
 }
 
@@ -82,8 +98,7 @@ impl Iterator for EurocStreamGray {
             let path = &self.img_paths[self.stream_cursor];
             self.stream_cursor += 1;
 
-            let img = open(path).unwrap().into_luma();
-            Some(MeasurementData::Grayscale(img))
+            Some(self.get_measurement_data(path))
         }
     }
 }
@@ -97,14 +112,10 @@ impl Stream for EurocStreamGray {
         // get a list of all the timestamps and image strings
 
         // initialise reader
-        let f = File::open(self.root_dir.join("data.csv"))?;
-        let mut conts = vec![];
-        f.read_to_end(&mut conts);
-        let rdr = Reader::from_reader(&conts);
+        let csv_conts = self.parse_csv()?;
+        let rdr = Reader::from_reader(csv_conts.as_bytes());
 
         let csv_iter = rdr.into_records();
-        // TODO - Does this include the header?
-
         let mut img_stamps: Vec<Duration> = vec![];
 
         // discard images that are not actually found in the dataset - inform about it
@@ -130,7 +141,7 @@ impl Stream for EurocStreamGray {
         // all frequencies
         let mut freqs = Vec::<f64>::with_capacity(img_stamps.len() - 1);
         for i in 1..img_stamps.len() {
-            freqs[i - 1] = 1.0 / (img_stamps[i] - img_stamps[i - 1]).as_secs_f64()
+            freqs.push(1.0 / (img_stamps[i] - img_stamps[i - 1]).as_secs_f64())
         }
 
         // compute mean
@@ -140,15 +151,14 @@ impl Stream for EurocStreamGray {
         let variance: f64 =
             freqs.iter().map(|freq| (freq - mean).powi(2)).sum::<f64>() / freqs.len() as f64;
         let stddev = variance.sqrt();
-        println!("stddev: {:#?}", stddev);
 
-        // if most data (90%) are in the [-0.3sigma, +0.3sigma] range then mean == freq_hint
-        if freqs
+        let count = freqs
             .iter()
             .filter(|&&freq| freq > 3.0f64.mul_add(stddev, mean) || freq < mean - 3.0 * stddev)
-            .count()
-            < (0.1 * freqs.len() as f64) as usize
-        {
+            .count() as f64;
+
+        // if most data (90%) are in the [-0.3sigma, +0.3sigma] range then mean == freq_hint
+        if count < (0.1 * freqs.len() as f64) {
             self.freq = Some(mean);
         }
 
@@ -240,8 +250,9 @@ impl DatasetDriver for EurocDriver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_approx_eq::assert_approx_eq;
     use mocktopus::mocking::*;
-    use std::io::{Error, ErrorKind};
+    use std::io::Error;
 
     #[test]
     fn euroc_stream_invalid_dir_test() {
@@ -255,21 +266,79 @@ mod tests {
 
     #[test]
     fn euroc_stream_normal_test() {
-        EurocStreamGray::image_exists.mock_safe(|x, y| MockResult::Return(true));
-        EurocStreamGray::get_csv_reader.mock_safe(|x| MockResult::Return(true));
+        let data_csv_conts = include_str!("../../tests/sample_dataset/cam0/data.csv");
+
+        EurocStreamGray::image_exists.mock_safe(|_, _| MockResult::Return(true));
+        EurocStreamGray::parse_csv
+            .mock_safe(move |_| MockResult::Return(Ok(data_csv_conts.to_string())));
+
+        // Compute the hashes of the images to be shown - then compare them to the hashes of the
+        // images returned at runtime
+        let mut img_data: Vec<MeasurementData> = vec![]; // TODO
+        let mut img_hashes: Vec<u64> = vec![];
+
+        let img0 = include_bytes!("../../tests/sample_dataset/cam0/data/1403636579763555584.png");
+        let mut loaded_img = load_from_memory_with_format(img0, Png).expect("Load img from memory");
+        img_data.push(MeasurementData::Grayscale(loaded_img.into_luma()));
+
+        let img1 = include_bytes!("../../tests/sample_dataset/cam0/data/1403636579813555456.png");
+        loaded_img = load_from_memory_with_format(img1, Png).expect("Load img from memory");
+        img_data.push(MeasurementData::Grayscale(loaded_img.into_luma()));
+
+        let img2 = include_bytes!("../../tests/sample_dataset/cam0/data/1403636579863555584.png");
+        loaded_img = load_from_memory_with_format(img2, Png).expect("Load img from memory");
+        img_data.push(MeasurementData::Grayscale(loaded_img.into_luma()));
+
+        let img3 = include_bytes!("../../tests/sample_dataset/cam0/data/1403636579913555456.png");
+        loaded_img = load_from_memory_with_format(img3, Png).expect("Load img from memory");
+        img_data.push(MeasurementData::Grayscale(loaded_img.into_luma()));
+
+        let img4 = include_bytes!("../../tests/sample_dataset/cam0/data/1403636579963555584.png");
+        loaded_img = load_from_memory_with_format(img4, Png).expect("Load img from memory");
+        img_data.push(MeasurementData::Grayscale(loaded_img.into_luma()));
+
+        // to be passed in mock
+        let mut img_data_copy = img_data.clone();
+
+        // vec.remove(0) <-- Pass different values at every mock call
+        EurocStreamGray::get_measurement_data
+            .mock_safe(move |_, path| MockResult::Return(img_data_copy.remove(0)));
 
         let mut stream = EurocStreamGray::new();
-        let mut fake_csv_reader = todo!(); // TODO
-        let stream_images: Vec<MeasurementData> = vec![]; // TODO
-        stream.get_csv_reader().returning(|| Ok(fake_csv_reader));
-        stream.image_exists().return_const(true);
 
+        // compute expected hashes
+        for img in img_data {
+            let mut hasher = DefaultHasher::new();
+            img.hash(&mut hasher);
+            img_hashes.push(hasher.finish())
+        }
         stream.init().unwrap();
 
-        for (idx, data) in &stream.iter().enumerate() {
-            assert_eq!(stream_images[idx], data)
+        assert_eq!(stream.len(), 5);
+        assert_approx_eq!(stream.freq_hint().expect("Needed a valid freq"), 20.0);
+
+        // compute the hashes of the loaded images - compare them
+        for (idx, data) in stream.into_iter().enumerate() {
+            println!("[euroc.rs:319] DEBUGGING STRING ==> {:#?}", 5);
+            let mut hasher = DefaultHasher::new();
+            data.hash(&mut hasher);
+            let h: u64 = hasher.finish();
+            assert_eq!(img_hashes[idx], h);
         }
     }
 
-    // use guerrilla
+    #[test]
+    fn euroc_stream_empty_data_csv() {
+        // Read from an empty CSV file - Make sure it throws the appropriate error
+        EurocStreamGray::parse_csv.mock_safe(|_| MockResult::Return(Ok(String::new())));
+
+        let mut stream = EurocStreamGray::new();
+        match stream.init() {
+            Ok(_) => panic!("Should have failed"),
+            Err(err) => assert_eq!(
+                err.downcast().unwrap(),
+                Box::new(DatasetDriverError::StreamEmpty)
+            ),
+        }
+    }
 }

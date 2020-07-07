@@ -13,7 +13,7 @@ pub enum MeasurementType {
     Odometry, // not implemented
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Hash, Clone)]
 pub enum MeasurementData {
     Grayscale(GrayImage),
     // --- rest not implemented yet
